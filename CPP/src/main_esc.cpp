@@ -11,6 +11,10 @@
 
 #include "stm32g0xx_hal_adc.h"
 
+uint16_t to_big_endiean(uint16_t value)
+{
+	return  (uint16_t)( ((value>>8) & 0xff) | ((value<<8) & 0xffff));
+}
 void TIM_DMADelayPulseCplt2(DMA_HandleTypeDef *hdma)
 {
   TIM_HandleTypeDef *htim = (TIM_HandleTypeDef *)((DMA_HandleTypeDef *)hdma)->Parent;
@@ -206,6 +210,8 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 	else if( TIM17 == htim->Instance)
 	{
+		static uint16_t crash_detected_counter = 0;
+		const uint16_t MIN_THROTTLE_FOR_CRASH_DETECTION = 1000;
 		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
 		{
 
@@ -222,6 +228,21 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 				 * Bump motor if not spinning.
 				 * this commutates motor if timer expired and throttle > 0.
 				 */
+				if( peeprom_settings->crash_detection > 0 && throttle > MIN_THROTTLE_FOR_CRASH_DETECTION && esc_status == ESC_STATUS::running)
+				{
+					if( crash_detected_counter++ > peeprom_settings->crash_detection )
+					{
+						pdshot_settings->fc_throttle = 0;
+						set_motor_throttle(0);
+
+						disconnect_motor_phases();
+						esc_status = ESC_STATUS::stopped;
+
+					}
+				}else
+				{
+					crash_detected_counter = 0;
+				}
 				if( motor_not_spinning == 0 && throttle > 300 )// TODO: Magic value needs config option.
 				{
 //						esc_status = ESC_STATUS::crashedDetected;
@@ -340,22 +361,25 @@ void process_throttle_input(uint16_t *throttle_value,dshot_signal_t* pdshot)
 
 	static const uint16_t MIN_TROTTLE_TURTLE = 50;
 	static const uint16_t MIN_THROTTLE = 3000;
-	if (pdshot->motor_direction != pdshot->motor_master_direction)
+
+	volatile uint16_t rampup = to_big_endiean( peeprom_settings->rampup);
+	volatile uint16_t turtle_rampup = to_big_endiean( peeprom_settings->turtle_rampup);
+	if (pdshot->motor_direction != pdshot->motor_master_direction && pdshot->fc_throttle > MAX_NUMBER_OF_COMMANDS)
 	{
-		if (pdshot->fc_throttle > MAX_NUMBER_OF_COMMANDS && (pdshot->fc_throttle - throttle) > peeprom_settings->turtle_rampup)
+		if ( (pdshot->fc_throttle - throttle) > turtle_rampup)
 		{
 			if (throttle == 0)
-				pdshot->fc_throttle = peeprom_settings->turtle_rampup + MAX_NUMBER_OF_COMMANDS;
+				pdshot->fc_throttle = turtle_rampup + MAX_NUMBER_OF_COMMANDS;
 			else
-				pdshot->fc_throttle = throttle + peeprom_settings->turtle_rampup;
+				pdshot->fc_throttle = throttle + turtle_rampup;
 
 		}
-	} else if (pdshot->fc_throttle > MAX_NUMBER_OF_COMMANDS && (pdshot->fc_throttle - throttle) > peeprom_settings->rampup)
+	} else if ( (pdshot->fc_throttle - throttle) > rampup && pdshot->fc_throttle > MAX_NUMBER_OF_COMMANDS)
 	{
 		if (throttle == 0)
-			pdshot->fc_throttle = peeprom_settings->rampup + MAX_NUMBER_OF_COMMANDS;
+			pdshot->fc_throttle = rampup + MAX_NUMBER_OF_COMMANDS;
 		else
-			pdshot->fc_throttle = throttle + peeprom_settings->rampup;
+			pdshot->fc_throttle = throttle + rampup;
 
 	} else {
 	}
@@ -909,6 +933,8 @@ void dshot_rpm(dshot_signal_t *pdshot)
 	}
 }
 
+
+
 void init_eeprom(eeprom_settings_t *psettings, dshot_signal_t *pdshot)
 {
 	eeprom_settings_t settings_temp;
@@ -919,6 +945,11 @@ void init_eeprom(eeprom_settings_t *psettings, dshot_signal_t *pdshot)
 	const uint16_t MAX_RAMPUP = 2048;
 	const uint8_t NORMAL_DIRECTION = 1;
 
+
+	psettings->startup_throttle = to_big_endiean(psettings->startup_throttle);
+	psettings->rampup = to_big_endiean(psettings->rampup);
+
+	eeprom_settings_t readmem;
 	read_memory((uint8_t*)&settings_temp, sizeof(eeprom_settings_t), EEPROM_ADDRESS);
 
 	if( settings_temp.version == 0xff || settings_temp.sub_version == 0xff)
@@ -943,15 +974,15 @@ void init_eeprom(eeprom_settings_t *psettings, dshot_signal_t *pdshot)
 					MAX_COMMUTATION_DELAY_3MS : psettings->commutation_delay;
 
 	psettings->startup_throttle =
-			psettings->startup_throttle > MAX_STARTUP_THROTTLE ?
-					MAX_STARTUP_THROTTLE : psettings->startup_throttle;
+			to_big_endiean( psettings->startup_throttle) > MAX_STARTUP_THROTTLE ?
+					to_big_endiean( MAX_STARTUP_THROTTLE) : psettings->startup_throttle;
 
 	psettings->turtle_rampup =
 			psettings->turtle_rampup > MAX_TURTLE_RAMPUP ?
 					TURTLE_RAMPUP_DEFAULT : psettings->turtle_rampup;
 
 	psettings->rampup =
-			psettings->rampup > MAX_RAMPUP ? MAX_RAMPUP : psettings->rampup;
+			to_big_endiean( psettings->rampup) > MAX_RAMPUP ? to_big_endiean( MAX_RAMPUP) : psettings->rampup;
 
 	psettings->motor_direction_master =
 			psettings->motor_direction_master > NORMAL_DIRECTION ?
@@ -961,8 +992,15 @@ void init_eeprom(eeprom_settings_t *psettings, dshot_signal_t *pdshot)
 			psettings->motor_direction > NORMAL_DIRECTION ?
 					NORMAL_DIRECTION : psettings->motor_direction;
 
+	psettings->crash_detection =
+			psettings->crash_detection > 10 ?
+					100 : psettings->motor_direction;
+
 	pdshot->motor_master_direction 		= psettings->motor_direction_master;
 	pdshot->motor_direction 			= psettings->motor_direction;
+
+
+
 
 }
 

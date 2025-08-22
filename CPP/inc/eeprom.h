@@ -25,6 +25,7 @@
 #define  WORD_SIZE  (0x04)
 #define PAGE_SIZE  (0x800)
 const unsigned short  THROTTLE_DELAY = 300;
+const uint16_t THROTTLE_RAMPUP = 2048;
 
 typedef struct eeprom_settings_s {
 	char name[12] 			= {"Gil32"};		//		= {"Gil32"};
@@ -35,10 +36,10 @@ typedef struct eeprom_settings_s {
 	uint8_t commutation_delay 	= 64;
 	uint16_t startup_throttle = THROTTLE_DELAY ;//0x2c01; // 300=0x12c reversed.
 	uint8_t turtle_rampup  		= 50;
-	uint16_t rampup  			= 4000;
+	uint16_t rampup  			= THROTTLE_RAMPUP;
 	uint8_t motor_direction_master  = 0x1;
-	uint8_t motor_direction 	= 0xff;
-	uint8_t feature1  			= 0xff;
+	uint8_t motor_direction 	= 0x01;
+	uint8_t crash_detection     = 0x00;
 	uint8_t feature2  			= 0xff;
 	uint8_t feature3 			= 0xff;
 	uint8_t feature4  			= 0xff;
