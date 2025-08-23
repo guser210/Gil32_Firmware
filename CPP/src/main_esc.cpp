@@ -363,11 +363,9 @@ void process_throttle_input(uint16_t *throttle_value,dshot_signal_t* pdshot)
 	no_signal_counter = 0;
 	pdshot->fc_throttle = *throttle_value;
 
-	static const uint16_t MIN_TROTTLE_TURTLE = 50;
-	static const uint16_t MIN_THROTTLE = 3000;
-
 	volatile uint16_t rampup = to_big_endiean( peeprom_settings->rampup);
 	volatile uint16_t turtle_rampup = to_big_endiean( peeprom_settings->turtle_rampup);
+
 	if (pdshot->motor_direction != pdshot->motor_master_direction && pdshot->fc_throttle > MAX_NUMBER_OF_COMMANDS)
 	{
 		if ( (pdshot->fc_throttle - throttle) > turtle_rampup)
@@ -391,7 +389,7 @@ void process_throttle_input(uint16_t *throttle_value,dshot_signal_t* pdshot)
 
 	if (motor_not_spinning && electrical_rpm_in_us < 4500) { // TODO: Magic numbers
 		if (commutation_counter > 400) {
-			commutation_counter = 2500;
+			commutation_counter = 2500; // TODO: magic numbers.
 			motor_not_spinning = 0;
 		}
 
@@ -435,11 +433,11 @@ void set_motor_throttle( uint16_t duty)
 	throttle = duty;
 	if( duty == 0 || (esc_status != ESC_STATUS::running && esc_status != ESC_STATUS::startup))
 	{
-		if( disableFetsCounter++ >= 1200)
+		if( disableFetsCounter++ >= 1200) // TODO: magic number.s
 		{ // TODO: BrennanG requested hard stop but no locked motors.
 
 			disconnect_motor_phases();
-			disableFetsCounter = 2000;
+			disableFetsCounter = 2000; // TODO: magic numbers.
 		}
 
 		duty = 0;
@@ -484,7 +482,7 @@ void set_receive_signal_from_fc(void)
 
 	TIM3->CCMR1 = (DSHOT_FILTER | TIM_CCMR1_CC1S_0); // Filter.
 
-	TIM3->CCMR1 &= ~(0x03 << 2); // IC1PSC
+	TIM3->CCMR1 &= ~(0x03 << 2); // IC1PSC // TODO: magic number.
 
 	hdma_tim3_ch1.Instance->CMAR = (uint32_t) dma_signal;
 	hdma_tim3_ch1.Instance->CNDTR = 32;
@@ -714,7 +712,7 @@ void HAL_COMP_TriggerCallback(COMP_HandleTypeDef *hcomp)
 
 	const uint16_t timer_7_cnt = (uint16_t)TIM7->CNT;
 
-	if( timer_7_cnt < commutation_ticks)//(commutationDelay > 0 ? commutationDelay   : 3000))
+	if( timer_7_cnt < commutation_ticks)
 	{
 		return;
 	}
@@ -746,6 +744,7 @@ void HAL_COMP_TriggerCallback(COMP_HandleTypeDef *hcomp)
 	}
 
 	commutate(pdshot_settings);
+
 	commutation_ticks >>= 1;
 	commutation_ticks += peeprom_settings->commutation_delay;
 

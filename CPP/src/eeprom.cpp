@@ -15,6 +15,8 @@
 
 void read_memory(uint8_t *data, uint16_t size, uint32_t address)
 {
+	if( address < APPLICATION_ADDRESS)
+		return;
 
 	uint32_t pEEPROM =  (BASE_ADDRESS + address);
 	memcpy((void*)data,(const void**)pEEPROM, size);
@@ -59,6 +61,8 @@ void erase_page(uint8_t page)
 
 void write_memory(uint8_t* data,const uint16_t size,const uint32_t address){
 
+	if( address < APPLICATION_ADDRESS)
+		return;
 
 	const uint8_t  PAGE 		= (address / PAGE_SIZE);
 	const uint8_t  ERASE_PAGE 	= !(address % PAGE_SIZE);
