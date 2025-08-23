@@ -227,6 +227,10 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
 				/*
 				 * Bump motor if not spinning.
 				 * this commutates motor if timer expired and throttle > 0.
+				 *
+				 *	For a crash to be consider a true event the esc needs to be in a state of running, throttle needs to be high for a number
+				 *	of cycles.
+				 *
 				 */
 				if( peeprom_settings->crash_detection > 0 && throttle > MIN_THROTTLE_FOR_CRASH_DETECTION && esc_status == ESC_STATUS::running)
 				{
