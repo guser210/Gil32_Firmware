@@ -842,20 +842,21 @@ void disconnect_motor_phases(void)
 	MOTOR_TIMER->DIER = 0;
 	MOTOR_TIMER->CCER = 0;
 }
-void motor_startup(dshot_signal_t *pdshot)
+void motor_startup(dshot_signal_t *pdshot, eeprom_settings_t *peeprom)
  {
 	static uint32_t timestamp_startup = 0;
 	static uint32_t timestamp_spinning = 0;
 	static uint32_t now = HAL_GetTick();
 	now = HAL_GetTick();
-	if (pdshot->fc_throttle > 70 && esc_status == ESC_STATUS::stopped && (now - timestamp_spinning) > 250)
+	if (pdshot->fc_throttle > (MAX_NUMBER_OF_COMMANDS + 10) && esc_status == ESC_STATUS::stopped && (now - timestamp_spinning) > 250)
 	{
+		uint16_t startup_throttle = to_big_endiean(peeprom->startup_throttle);
 		// This starts motor spin.
 		esc_status = ESC_STATUS::startup;
 		timestamp_startup = now;
 		timestamp_spinning = now;
 		commutation_counter = 0;
-		set_motor_throttle(300);
+		set_motor_throttle(startup_throttle);
 
 	} else if (pdshot->fc_throttle > MAX_NUMBER_OF_COMMANDS && esc_status == ESC_STATUS::startup && (now - timestamp_startup) > 150)
 	{
@@ -942,6 +943,7 @@ void init_eeprom(eeprom_settings_t *psettings, dshot_signal_t *pdshot)
 {
 	eeprom_settings_t settings_temp;
 	const uint8_t MAX_COMMUTATION_DELAY_3MS = 192;
+	const uint8_t MAX_COMMUTATION_DELAY_0_5MS = 32;
 	const uint16_t MAX_STARTUP_THROTTLE = 500;
 	const uint8_t MAX_TURTLE_RAMPUP = 250;
 	const uint8_t TURTLE_RAMPUP_DEFAULT = 50;
@@ -951,6 +953,9 @@ void init_eeprom(eeprom_settings_t *psettings, dshot_signal_t *pdshot)
 
 	psettings->startup_throttle = to_big_endiean(psettings->startup_throttle);
 	psettings->rampup = to_big_endiean(psettings->rampup);
+
+	psettings->firmware_deadtime = to_big_endiean(psettings->firmware_deadtime);
+
 
 	eeprom_settings_t readmem;
 	read_memory((uint8_t*)&settings_temp, sizeof(eeprom_settings_t), EEPROM_ADDRESS);
@@ -974,7 +979,7 @@ void init_eeprom(eeprom_settings_t *psettings, dshot_signal_t *pdshot)
 
 	psettings->commutation_delay =
 			psettings->commutation_delay > MAX_COMMUTATION_DELAY_3MS ?
-					MAX_COMMUTATION_DELAY_3MS : psettings->commutation_delay;
+					MAX_COMMUTATION_DELAY_0_5MS : psettings->commutation_delay;
 
 	psettings->startup_throttle =
 			to_big_endiean( psettings->startup_throttle) > MAX_STARTUP_THROTTLE ?
@@ -1040,6 +1045,15 @@ void Setup(void)
 	if( HAL_TIM_Base_Start(&E_RPM_TIMER) != HAL_OK)
 		Error_Handler();
 
+
+	//to_big_endiean(psettings->firmware_deadtime);
+	volatile uint16_t deadtime = to_big_endiean(peeprom_settings->firmware_deadtime);
+	if( deadtime < 300 || deadtime > 800) deadtime = 400;
+
+	deadtime = (deadtime * 64) / 1000;
+
+	TIM1->BDTR &= ~TIM_BDTR_DTG;
+	TIM1->BDTR |= ( deadtime & TIM_BDTR_DTG_Msk);
 	HAL_TIM_Base_Start(&htim1);
 
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_5);
@@ -1118,7 +1132,7 @@ void esc_main(void)
 
 		detect_protocol(pdshot_settings);
 		motor_beep(pdshot_settings);
-		motor_startup(pdshot_settings);
+		motor_startup(pdshot_settings, peeprom_settings);
 
 		dshot_rpm(pdshot_settings);
 

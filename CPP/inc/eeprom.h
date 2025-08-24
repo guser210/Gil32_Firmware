@@ -40,8 +40,7 @@ typedef struct eeprom_settings_s {
 	uint8_t motor_direction_master  = 0x1;
 	uint8_t motor_direction 	= 0x01;
 	uint8_t crash_detection     = 0x00;
-	uint8_t feature2  			= 0xff;
-	uint8_t feature3 			= 0xff;
+	uint16_t firmware_deadtime = 0x190;
 	uint8_t feature4  			= 0xff;
 	uint8_t feature5  			= 0xff;
 	uint8_t feature6  			= 0xff;
