@@ -949,7 +949,11 @@ void init_eeprom(eeprom_settings_t *psettings, dshot_signal_t *pdshot)
 	const uint8_t TURTLE_RAMPUP_DEFAULT = 50;
 	const uint16_t MAX_RAMPUP = 2048;
 	const uint8_t NORMAL_DIRECTION = 1;
+	const uint32_t INIT_FLAG_ADDRESS = 0xF900;
 
+	volatile uint8_t init_flag[4] = {0};
+
+	read_memory((uint8_t*)&init_flag,4,INIT_FLAG_ADDRESS);
 
 	psettings->startup_throttle = to_big_endiean(psettings->startup_throttle);
 	psettings->rampup = to_big_endiean(psettings->rampup);
@@ -966,13 +970,11 @@ void init_eeprom(eeprom_settings_t *psettings, dshot_signal_t *pdshot)
 		settings_temp.sub_version = 0;
 	}
 
-	if( psettings->version > settings_temp.version)
+	if( psettings->version > settings_temp.version || init_flag[0] != 0x47)
 	{
 		write_memory((uint8_t*)psettings, sizeof(eeprom_settings_t), EEPROM_ADDRESS);
-	}
-	else if(psettings->version >= settings_temp.version && psettings->sub_version > settings_temp.sub_version )
-	{
-		write_memory((uint8_t*)psettings, sizeof(eeprom_settings_t), EEPROM_ADDRESS);
+		init_flag[0] = 0x47;
+		write_memory((uint8_t*)&init_flag, 4, INIT_FLAG_ADDRESS);
 	}
 
 	read_memory((uint8_t*)psettings, sizeof(eeprom_settings_t), EEPROM_ADDRESS);

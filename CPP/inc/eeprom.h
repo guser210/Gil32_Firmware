@@ -30,8 +30,8 @@ const uint16_t THROTTLE_RAMPUP = 2048;
 typedef struct eeprom_settings_s {
 	char name[12] 			= {"Gil32"};		//		= {"Gil32"};
 	char description[64]	= {"ESC Firmware"};//
-	uint8_t version	 			= 1;
-	uint8_t sub_version 		= 2;
+		uint8_t version	 			= 1;
+		uint8_t sub_version 		= 2;
 	uint8_t esc_config_layout	= 1;
 	uint8_t commutation_delay 	= 64;
 	uint16_t startup_throttle = THROTTLE_DELAY ;//0x2c01; // 300=0x12c reversed.
